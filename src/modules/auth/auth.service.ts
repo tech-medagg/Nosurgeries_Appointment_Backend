@@ -1,10 +1,10 @@
 import bcrypt from "bcrypt";
 
-import { RegisterInput } from "./auth.validation";
+import { RegisterInput, LoginInput } from "./auth.validation";
 import * as authRepository from "./auth.repository";
+import { generateAccessToken } from "../../utils/jwt";
 
 export const register = async (data: RegisterInput) => {
-  // Check email
   const existingEmail = await authRepository.findUserByEmail(data.email);
 
   if (existingEmail) {
@@ -14,7 +14,6 @@ export const register = async (data: RegisterInput) => {
     };
   }
 
-  // Check mobile
   const existingMobile = await authRepository.findUserByMobile(data.mobile);
 
   if (existingMobile) {
@@ -24,18 +23,64 @@ export const register = async (data: RegisterInput) => {
     };
   }
 
-  // Hash password
   const hashedPassword = await bcrypt.hash(data.password, 10);
 
-  // Create user
   const user = await authRepository.createUser({
     ...data,
     password: hashedPassword,
   });
 
+  // Strict mode safety
+  if (!user) {
+    throw new Error("Failed to create user");
+  }
+
+  const { password, ...safeUser } = user;
+
   return {
     success: true,
     message: "User registered successfully",
-    data: user,
+    data: safeUser,
+  };
+};
+
+export const login = async (data: LoginInput) => {
+  const user = await authRepository.findUserByMobile(data.mobile);
+
+  if (!user) {
+    return {
+      success: false,
+      message: "Invalid mobile number or password",
+    };
+  }
+
+  const isPasswordValid = await bcrypt.compare(
+    data.password,
+    user.password
+  );
+
+  if (!isPasswordValid) {
+    return {
+      success: false,
+      message: "Invalid mobile number or password",
+    };
+  }
+
+  const accessToken = generateAccessToken({
+    userId: user.id,
+    roleId: user.roleId,
+    roleName: user.roleName,
+    email: user.email,
+  });
+
+  const { password, ...safeUser } = user;
+
+  return {
+    success: true,
+    message: "Login successful",
+    data: {
+      accessToken,
+      user: safeUser,
+    },
   };
 };
