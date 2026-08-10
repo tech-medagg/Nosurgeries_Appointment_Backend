@@ -42,11 +42,12 @@ export const leadPriorityEnum = pgEnum("lead_priority", [
  * Appointment Status
  */
 export const appointmentStatusEnum = pgEnum("appointment_status", [
-  "PENDING",
-  "CONFIRMED",
-  "COMPLETED",
-  "CANCELLED",
-  "RESCHEDULED",
+      "PENDING",
+      "CONFIRMED",
+      "CHECKED_IN",
+      "COMPLETED",
+      "CANCELLED",
+      "RESCHEDULED",
 ]);
 
 /**

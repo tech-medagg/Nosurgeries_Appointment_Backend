@@ -14,12 +14,8 @@ import { genderEnum } from "./enums";
 export const patientProfiles = pgTable(
   "patient_profiles",
   {
-    // Primary Key
-    id: uuid("id")
-      .defaultRandom()
-      .primaryKey(),
+    id: uuid("id").defaultRandom().primaryKey(),
 
-    // User Reference
     userId: uuid("user_id")
       .references(() => users.id, {
         onDelete: "cascade",
@@ -27,7 +23,6 @@ export const patientProfiles = pgTable(
       })
       .notNull(),
 
-    // Personal Information
     firstName: varchar("first_name", {
       length: 100,
     }).notNull(),
@@ -48,11 +43,13 @@ export const patientProfiles = pgTable(
       length: 50,
     }),
 
-    profileImage: varchar("profile_image", {
-      length: 500,
-    }),
+    profileImage: varchar(
+      "profile_image",
+      {
+        length: 500,
+      }
+    ),
 
-    // Contact Information
     address: text("address"),
 
     city: varchar("city", {
@@ -71,11 +68,26 @@ export const patientProfiles = pgTable(
       length: 10,
     }),
 
-    emergencyContact: varchar("emergency_contact", {
-      length: 20,
-    }),
+    emergencyContact: varchar(
+      "emergency_contact",
+      {
+        length: 20,
+      }
+    ),
 
-    // Audit
+    emergencyContactName: varchar(
+      "emergency_contact_name",
+      {
+        length: 100,
+      }
+    ),
+
+    medicalHistory: text(
+      "medical_history"
+    ),
+
+    allergies: text("allergies"),
+
     createdAt: timestamp("created_at", {
       withTimezone: true,
     })
@@ -89,6 +101,8 @@ export const patientProfiles = pgTable(
       .notNull(),
   },
   (table) => ({
-    userIndex: index("patient_profiles_user_idx").on(table.userId),
+    userIndex: index(
+      "patient_profiles_user_idx"
+    ).on(table.userId),
   })
 );

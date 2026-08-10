@@ -6,3 +6,4 @@ export * from "./hospitals";
 export * from "./patient-profiles";
 export * from "./roles";
 export * from "./users";
+export * from "./doctor_schedules";
