@@ -72,11 +72,17 @@ const generateTimeSlots = (
     .split(":")
     .map(Number);
 
-  const startHour = startParts[0] ?? 0;
-  const startMinute = startParts[1] ?? 0;
+  const startHour =
+    startParts[0] ?? 0;
 
-  const endHour = endParts[0] ?? 0;
-  const endMinute = endParts[1] ?? 0;
+  const startMinute =
+    startParts[1] ?? 0;
+
+  const endHour =
+    endParts[0] ?? 0;
+
+  const endMinute =
+    endParts[1] ?? 0;
 
   let currentMinutes =
     startHour * 60 + startMinute;
@@ -104,7 +110,8 @@ const generateTimeSlots = (
       `${formattedHour}:${formattedMinute}`
     );
 
-    currentMinutes += slotDuration;
+    currentMinutes +=
+      slotDuration;
   }
 
   return slots;
@@ -168,7 +175,7 @@ export const createAppointment = async (
   /* ---------------------------------------------
      Doctor Is Optional
 
-     Patient can submit appointment request
+     Patient can create an appointment
      without selecting a doctor.
 
      Admin can assign doctor later.
@@ -225,19 +232,42 @@ export const createAppointment = async (
        Check Doctor Schedule
     --------------------------------------------- */
 
-    const schedule =
-      await appointmentRepository.getDoctorSchedule(
-        data.doctorProfileId,
-        dayOfWeek
-      );
+ const schedule =
+  await appointmentRepository.getDoctorSchedule(
+    data.doctorProfileId,
+    dayOfWeek
+  );
 
-    if (!schedule) {
-      return {
-        success: false,
-        message:
-          "Doctor is not available on this day.",
-      };
-    }
+if (!schedule) {
+  return {
+    success: false,
+    message:
+      "Doctor is not available on this day.",
+  };
+}
+
+/* ---------------------------------------------
+   Validate Appointment Time
+--------------------------------------------- */
+
+const availableSlots =
+  generateTimeSlots(
+    schedule.startTime,
+    schedule.endTime,
+    schedule.slotDuration
+  );
+
+if (
+  !availableSlots.includes(
+    data.appointmentTime
+  )
+) {
+  return {
+    success: false,
+    message:
+      "Invalid appointment time. Please select an available slot.",
+  };
+}
 
     /* ---------------------------------------------
        Check Doctor Daily Capacity
@@ -507,7 +537,7 @@ export const getAvailableDoctors = async (
   appointmentDate: string
 ) => {
   /* ---------------------------------------------
-     Validate Date
+     Validate Appointment Date
   --------------------------------------------- */
 
   const date =
@@ -591,7 +621,7 @@ export const getAvailableDoctors = async (
   } = getDayRange(date);
 
   /* ---------------------------------------------
-     Build Doctor Availability
+     Build Availability
   --------------------------------------------- */
 
   const availability =
@@ -599,7 +629,7 @@ export const getAvailableDoctors = async (
       doctors.map(
         async (doctor) => {
           /* ---------------------------------------
-             Generate All Slots
+             Generate All Time Slots
           --------------------------------------- */
 
           const allSlots =
@@ -610,28 +640,48 @@ export const getAvailableDoctors = async (
             );
 
           /* ---------------------------------------
-             Get Already Booked Slots
+             Get Booked Slots
           --------------------------------------- */
 
-          const bookedSlots =
-            await appointmentRepository.getDoctorBookedSlots(
-              doctor.doctorProfileId,
-              startOfDay,
-              endOfDay
-            );
+const bookedSlots =
+  await appointmentRepository.getDoctorBookedSlots(
+    doctor.doctorProfileId,
+    startOfDay,
+    endOfDay
+  );
 
-          /* ---------------------------------------
-             Remove Booked Slots
-          --------------------------------------- */
+console.log(
+  "BOOKED SLOTS:",
+  doctor.doctorProfileId,
+  bookedSlots
+);
 
-          const availableSlots =
-            allSlots.filter(
-              (slot) =>
-                !bookedSlots.includes(
-                  slot
-                )
-            );
+// const bookedSlotTimes = bookedSlots
+//   .map((booking) => booking.appointmentTime)
+//   .filter(
+//     (time): time is string =>
+//       time !== null
+//   );
+const bookedSlotTimes = bookedSlots.filter(
+  (time): time is string =>
+    typeof time === "string" &&
+    time.length > 0
+);
+console.log(
+  "BOOKED SLOT TIMES:",
+  bookedSlotTimes
+);
 
+const availableSlots =
+  allSlots.filter(
+    (slot) =>
+      !bookedSlotTimes.includes(slot)
+  );
+
+console.log(
+  "AVAILABLE SLOTS:",
+  availableSlots
+);
           /* ---------------------------------------
              Return Doctor Availability
           --------------------------------------- */
@@ -639,6 +689,12 @@ export const getAvailableDoctors = async (
           return {
             doctorProfileId:
               doctor.doctorProfileId,
+
+            firstName:
+              doctor.firstName,
+
+            lastName:
+              doctor.lastName,
 
             doctorName:
               `${doctor.firstName} ${
@@ -661,7 +717,7 @@ export const getAvailableDoctors = async (
               doctor.maxPatients,
 
             bookedPatients:
-              bookedSlots.length,
+              bookedSlotTimes.length,
 
             availableSlots,
           };

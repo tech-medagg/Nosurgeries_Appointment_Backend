@@ -5,30 +5,40 @@ import { z } from "zod";
 ====================================================== */
 
 export const createAppointmentSchema = z.object({
-  patientId: z.string().uuid(),
+  patientId: z
+    .string()
+    .uuid(),
 
-  hospitalId: z.string().uuid(),
+  hospitalId: z
+    .string()
+    .uuid(),
 
-  departmentId: z.string().uuid(),
+  departmentId: z
+    .string()
+    .uuid(),
 
   doctorProfileId: z
     .string()
-    .uuid()
-    .optional(),
+    .uuid(),
 
-  appointmentDate: z.string(),
-
-  appointmentTime: z.string(),
-
-  consultationType: z
-    .enum([
-      "IN_PERSON",
-      "ONLINE",
-    ])
-    .default("IN_PERSON"),
-
-  symptoms: z
+  appointmentDate: z
     .string()
+    .min(
+      1,
+      "Appointment date is required."
+    ),
+
+  appointmentTime: z
+    .string()
+    .min(
+      1,
+      "Appointment time is required."
+    ),
+
+  consultationFee: z
+    .number()
+    .int()
+    .nonnegative()
     .optional(),
 
   notes: z
@@ -41,24 +51,56 @@ export const createAppointmentSchema = z.object({
 ====================================================== */
 
 export const updateAppointmentSchema =
-  createAppointmentSchema
-    .partial()
-    .extend({
-      status: z
-        .enum([
-          "PENDING",
-          "CONFIRMED",
-          "CHECKED_IN",
-          "COMPLETED",
-          "CANCELLED",
-          "RESCHEDULED",
-        ])
-        .optional(),
+  z.object({
+    patientId: z
+      .string()
+      .uuid()
+      .optional(),
 
-      tokenNumber: z
-        .number()
-        .optional(),
-    });
+    hospitalId: z
+      .string()
+      .uuid()
+      .optional(),
+
+    departmentId: z
+      .string()
+      .uuid()
+      .optional(),
+
+    doctorProfileId: z
+      .string()
+      .uuid()
+      .optional(),
+
+    appointmentDate: z
+      .string()
+      .optional(),
+
+    appointmentTime: z
+      .string()
+      .optional(),
+
+    consultationFee: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional(),
+
+    notes: z
+      .string()
+      .optional(),
+
+    status: z
+      .enum([
+        "PENDING",
+        "CONFIRMED",
+        "CHECKED_IN",
+        "COMPLETED",
+        "CANCELLED",
+        "RESCHEDULED",
+      ])
+      .optional(),
+  });
 
 /* ======================================================
    Get Appointments
@@ -128,7 +170,7 @@ export type GetAppointmentsQuery =
     typeof getAppointmentsSchema
   >;
 
-  /* ======================================================
+/* ======================================================
    Get Doctor Availability Validation
 ====================================================== */
 
@@ -136,11 +178,15 @@ export const getDoctorAvailabilitySchema =
   z.object({
     hospitalId: z
       .string()
-      .uuid("Invalid hospital ID."),
+      .uuid(
+        "Invalid hospital ID."
+      ),
 
     departmentId: z
       .string()
-      .uuid("Invalid department ID."),
+      .uuid(
+        "Invalid department ID."
+      ),
 
     appointmentDate: z
       .string()
@@ -150,7 +196,8 @@ export const getDoctorAvailabilitySchema =
       )
       .refine(
         (value) => {
-          const date = new Date(value);
+          const date =
+            new Date(value);
 
           return !Number.isNaN(
             date.getTime()

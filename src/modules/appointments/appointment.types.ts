@@ -19,19 +19,15 @@ export interface AppointmentResponse {
 
   departmentId: string;
 
-  doctorProfileId: string | null;
+  doctorProfileId: string;
 
   appointmentDate: Date;
 
-  appointmentTime: string;
+  appointmentTime: string | null;
 
-  consultationType: string;
-
-  symptoms: string | null;
+  consultationFee: number | null;
 
   notes: string | null;
-
-  tokenNumber: number | null;
 
   status:
     | "PENDING"
@@ -39,7 +35,7 @@ export interface AppointmentResponse {
     | "CHECKED_IN"
     | "COMPLETED"
     | "CANCELLED"
-    | "NO_SHOW";
+    | "RESCHEDULED";
 
   createdAt: Date;
 
@@ -48,12 +44,24 @@ export interface AppointmentResponse {
 
 export interface DoctorAvailability {
   doctorProfileId: string;
+
+  firstName: string;
+
+  lastName: string | null;
+
   doctorName: string;
+
   dayOfWeek: string;
+
   startTime: string;
+
   endTime: string;
+
   slotDuration: number;
+
   maxPatients: number;
+
   bookedPatients: number;
-  availableSlots: number;
+
+  availableSlots: string[];
 }

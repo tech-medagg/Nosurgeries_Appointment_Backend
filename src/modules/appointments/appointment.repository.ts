@@ -11,17 +11,16 @@ import {
 
 import {
   GetAppointmentsQuery,
-} from "./appointment.validation";
-import { doctorSchedules } from "../../db/schema/doctor_schedules";
-import { appointments } from "../../db/schema/appointments";
-import { users } from "../../db/schema/users";
-import { hospitals } from "../../db/schema/hospitals";
-import { departments } from "../../db/schema/departments";
-import { doctorProfiles } from "../../db/schema/doctor_profiles";
-import {
   CreateAppointmentInput,
   UpdateAppointmentInput,
 } from "./appointment.validation";
+
+import { doctorSchedules } from "../../db/schema/doctor_schedules";
+import { appointments } from "../../db/schema/appointments";
+import { patientProfiles } from "../../db/schema/patient-profiles";
+import { hospitals } from "../../db/schema/hospitals";
+import { departments } from "../../db/schema/departments";
+import { doctorProfiles } from "../../db/schema/doctor_profiles";
 
 /* ======================================================
    Find Appointment By Id
@@ -33,7 +32,12 @@ export const findById = async (
   const result = await db
     .select()
     .from(appointments)
-    .where(eq(appointments.id, id))
+    .where(
+      eq(
+        appointments.id,
+        id
+      )
+    )
     .limit(1);
 
   return result[0] ?? null;
@@ -48,8 +52,13 @@ export const patientExists = async (
 ) => {
   const result = await db
     .select()
-    .from(users)
-    .where(eq(users.id, patientId))
+    .from(patientProfiles)
+    .where(
+      eq(
+        patientProfiles.id,
+        patientId
+      )
+    )
     .limit(1);
 
   return result[0] ?? null;
@@ -65,7 +74,12 @@ export const hospitalExists = async (
   const result = await db
     .select()
     .from(hospitals)
-    .where(eq(hospitals.id, hospitalId))
+    .where(
+      eq(
+        hospitals.id,
+        hospitalId
+      )
+    )
     .limit(1);
 
   return result[0] ?? null;
@@ -88,10 +102,12 @@ export const getDoctorSchedule = async (
           doctorSchedules.doctorProfileId,
           doctorProfileId
         ),
+
         eq(
           doctorSchedules.dayOfWeek,
           dayOfWeek
         ),
+
         eq(
           doctorSchedules.isAvailable,
           true
@@ -111,9 +127,30 @@ export const countDoctorAppointments = async (
   doctorProfileId: string,
   appointmentDate: Date
 ) => {
+  const startOfDay =
+    new Date(appointmentDate);
+
+  startOfDay.setHours(
+    0,
+    0,
+    0,
+    0
+  );
+
+  const endOfDay =
+    new Date(appointmentDate);
+
+  endOfDay.setHours(
+    23,
+    59,
+    59,
+    999
+  );
+
   const result = await db
     .select({
-      count: sql<number>`count(*)`,
+      count:
+        sql<number>`count(*)`,
     })
     .from(appointments)
     .where(
@@ -122,15 +159,24 @@ export const countDoctorAppointments = async (
           appointments.doctorProfileId,
           doctorProfileId
         ),
-        eq(
-          appointments.appointmentDate,
-          appointmentDate
-        ),
-        sql`${appointments.status} IN (
-          'PENDING',
-          'CONFIRMED',
-          'CHECKED_IN'
-        )`
+
+        sql`
+          ${appointments.appointmentDate}
+          >= ${startOfDay}
+        `,
+
+        sql`
+          ${appointments.appointmentDate}
+          <= ${endOfDay}
+        `,
+
+        sql`
+          ${appointments.status} IN (
+            'PENDING',
+            'CONFIRMED',
+            'CHECKED_IN'
+          )
+        `
       )
     );
 
@@ -149,7 +195,12 @@ export const departmentExists = async (
   const result = await db
     .select()
     .from(departments)
-    .where(eq(departments.id, departmentId))
+    .where(
+      eq(
+        departments.id,
+        departmentId
+      )
+    )
     .limit(1);
 
   return result[0] ?? null;
@@ -180,30 +231,92 @@ export const doctorExists = async (
    Create Appointment
 ====================================================== */
 
+/* ======================================================
+   Create Appointment
+====================================================== */
+
 export const create = async (
   data: CreateAppointmentInput
 ) => {
-  const [appointment] =
-    await db
-      .insert(appointments)
-      .values({
-        patientId: data.patientId,
-        hospitalId: data.hospitalId,
-        departmentId:
-          data.departmentId,
-        doctorProfileId:
-          data.doctorProfileId,
-        appointmentDate: new Date(
-          data.appointmentDate
+  const appointmentDate = new Date(data.appointmentDate);
+
+  // Start and end of the appointment date
+  const startOfDay = new Date(appointmentDate);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(appointmentDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  // Check whether this doctor already has this time booked
+  const existingAppointment = await db
+    .select({
+      id: appointments.id,
+      appointmentTime: appointments.appointmentTime,
+      status: appointments.status,
+    })
+    .from(appointments)
+    .where(
+      and(
+        eq(
+          appointments.doctorProfileId,
+          data.doctorProfileId
         ),
-        appointmentTime:
-          data.appointmentTime,
-        consultationType:
-          data.consultationType,
-        symptoms: data.symptoms,
-        notes: data.notes,
-      })
-      .returning();
+
+        sql`
+          ${appointments.appointmentDate}
+          >= ${startOfDay}
+        `,
+
+        sql`
+          ${appointments.appointmentDate}
+          <= ${endOfDay}
+        `,
+
+        eq(
+          appointments.appointmentTime,
+          data.appointmentTime
+        ),
+
+        sql`
+          ${appointments.status} IN (
+            'PENDING',
+            'CONFIRMED',
+            'CHECKED_IN',
+            'RESCHEDULED'
+          )
+        `
+      )
+    )
+    .limit(1);
+
+  // Prevent duplicate booking
+  if (existingAppointment.length > 0) {
+    throw new Error(
+      "This appointment slot is already booked."
+    );
+  }
+
+  // Create appointment
+  const [appointment] = await db
+    .insert(appointments)
+    .values({
+      patientId: data.patientId,
+
+      hospitalId: data.hospitalId,
+
+      departmentId: data.departmentId,
+
+      doctorProfileId: data.doctorProfileId,
+
+      appointmentDate,
+
+      appointmentTime: data.appointmentTime,
+
+      consultationFee: data.consultationFee,
+
+      notes: data.notes,
+    })
+    .returning();
 
   return appointment;
 };
@@ -253,7 +366,9 @@ export const getAvailableDoctors = async (
       maxPatients:
         doctorSchedules.maxPatients,
     })
+
     .from(doctorProfiles)
+
     .innerJoin(
       doctorSchedules,
       eq(
@@ -261,6 +376,7 @@ export const getAvailableDoctors = async (
         doctorSchedules.doctorProfileId
       )
     )
+
     .where(
       and(
         eq(
@@ -301,44 +417,54 @@ export const update = async (
   id: string,
   data: UpdateAppointmentInput
 ) => {
-  const [appointment] = await db
-    .update(appointments)
-.set({
-  patientId: data.patientId,
+  const [appointment] =
+    await db
+      .update(appointments)
 
-  hospitalId: data.hospitalId,
+      .set({
+        patientId:
+          data.patientId,
 
-  departmentId: data.departmentId,
+        hospitalId:
+          data.hospitalId,
 
-  doctorProfileId:
-    data.doctorProfileId,
+        departmentId:
+          data.departmentId,
 
-  appointmentDate:
-    data.appointmentDate
-      ? new Date(
+        doctorProfileId:
+          data.doctorProfileId,
+
+        appointmentDate:
           data.appointmentDate
+            ? new Date(
+                data.appointmentDate
+              )
+            : undefined,
+
+        appointmentTime:
+          data.appointmentTime,
+
+        consultationFee:
+          data.consultationFee,
+
+        notes:
+          data.notes,
+
+        status:
+          data.status,
+
+        updatedAt:
+          new Date(),
+      })
+
+      .where(
+        eq(
+          appointments.id,
+          id
         )
-      : undefined,
+      )
 
-  appointmentTime:
-    data.appointmentTime,
-
-  consultationType:
-    data.consultationType,
-
-  symptoms: data.symptoms,
-
-  notes: data.notes,
-
-  tokenNumber:
-    data.tokenNumber,
-
-  status: data.status,
-
-  updatedAt: new Date(),
-})
-    .where(eq(appointments.id, id))
-    .returning();
+      .returning();
 
   return appointment ?? null;
 };
@@ -352,7 +478,12 @@ export const remove = async (
 ) => {
   const result = await db
     .delete(appointments)
-    .where(eq(appointments.id, id))
+    .where(
+      eq(
+        appointments.id,
+        id
+      )
+    )
     .returning();
 
   return result.length > 0;
@@ -376,16 +507,22 @@ export const getAll = async (
     order,
   } = query;
 
-  const offset = (page - 1) * limit;
+  const offset =
+    (page - 1) * limit;
 
   const conditions: SQL[] = [];
 
+  /* Patient */
   if (patientId) {
     conditions.push(
-      eq(appointments.patientId, patientId)
+      eq(
+        appointments.patientId,
+        patientId
+      )
     );
   }
 
+  /* Doctor */
   if (doctorProfileId) {
     conditions.push(
       eq(
@@ -395,6 +532,7 @@ export const getAll = async (
     );
   }
 
+  /* Hospital */
   if (hospitalId) {
     conditions.push(
       eq(
@@ -404,6 +542,7 @@ export const getAll = async (
     );
   }
 
+  /* Department */
   if (departmentId) {
     conditions.push(
       eq(
@@ -413,20 +552,25 @@ export const getAll = async (
     );
   }
 
+  /* Status */
   if (status) {
     conditions.push(
-      eq(appointments.status, status)
+      eq(
+        appointments.status,
+        status
+      )
     );
   }
 
   const whereClause =
-    conditions.length
+    conditions.length > 0
       ? and(...conditions)
       : undefined;
 
   const result = await db
     .select({
-      id: appointments.id,
+      id:
+        appointments.id,
 
       patientId:
         appointments.patientId,
@@ -446,17 +590,11 @@ export const getAll = async (
       appointmentTime:
         appointments.appointmentTime,
 
-      consultationType:
-        appointments.consultationType,
-
-      symptoms:
-        appointments.symptoms,
+      consultationFee:
+        appointments.consultationFee,
 
       notes:
         appointments.notes,
-
-      tokenNumber:
-        appointments.tokenNumber,
 
       status:
         appointments.status,
@@ -467,8 +605,11 @@ export const getAll = async (
       updatedAt:
         appointments.updatedAt,
 
-      patientName:
-        users.fullName,
+      patientFirstName:
+        patientProfiles.firstName,
+
+      patientLastName:
+        patientProfiles.lastName,
 
       hospitalName:
         hospitals.name,
@@ -476,17 +617,23 @@ export const getAll = async (
       departmentName:
         departments.name,
 
-      doctorName:
+      doctorFirstName:
         doctorProfiles.firstName,
+
+      doctorLastName:
+        doctorProfiles.lastName,
     })
+
     .from(appointments)
+
     .innerJoin(
-      users,
+      patientProfiles,
       eq(
         appointments.patientId,
-        users.id
+        patientProfiles.id
       )
     )
+
     .innerJoin(
       hospitals,
       eq(
@@ -494,6 +641,7 @@ export const getAll = async (
         hospitals.id
       )
     )
+
     .innerJoin(
       departments,
       eq(
@@ -501,6 +649,7 @@ export const getAll = async (
         departments.id
       )
     )
+
     .leftJoin(
       doctorProfiles,
       eq(
@@ -508,7 +657,9 @@ export const getAll = async (
         doctorProfiles.id
       )
     )
+
     .where(whereClause)
+
     .orderBy(
       order === "asc"
         ? asc(
@@ -518,31 +669,41 @@ export const getAll = async (
             appointments.createdAt
           )
     )
+
     .limit(limit)
+
     .offset(offset);
 
-  const totalResult = await db
-    .select({
-      count: sql<number>`count(*)`,
-    })
-    .from(appointments)
-    .where(whereClause);
+  /* ======================================================
+     Total Count
+  ====================================================== */
+
+  const totalResult =
+    await db
+      .select({
+        count:
+          sql<number>`count(*)`,
+      })
+      .from(appointments)
+      .where(whereClause);
+
+  const total = Number(
+    totalResult[0]?.count ?? 0
+  );
 
   return {
     appointments: result,
 
-    total: Number(
-      totalResult[0]?.count ?? 0
-    ),
+    total,
 
     page,
 
     limit,
 
-    totalPages: Math.ceil(
-      Number(totalResult[0]?.count ?? 0) /
-        limit
-    ),
+    totalPages:
+      Math.ceil(
+        total / limit
+      ),
   };
 };
 
@@ -555,33 +716,48 @@ export const getDoctorBookedSlots = async (
   startOfDay: Date,
   endOfDay: Date
 ) => {
-  const result = await db
-    .select({
-      appointmentTime:
-        appointments.appointmentTime,
-    })
-    .from(appointments)
-    .where(
-      and(
-        eq(
-          appointments.doctorProfileId,
-          doctorProfileId
-        ),
+  try {
+    const result = await db
+      .select({
+        id: appointments.id,
+        appointmentTime: appointments.appointmentTime,
+        status: appointments.status,      })
+      .from(appointments)
+      .where(
+        and(
+          eq(
+            appointments.doctorProfileId,
+            doctorProfileId
+          ),
 
-        sql`${appointments.appointmentDate} >= ${startOfDay}`,
+          sql`
+            ${appointments.appointmentDate} >= ${startOfDay}
+          `,
 
-        sql`${appointments.appointmentDate} < ${endOfDay}`,
+          sql`
+            ${appointments.appointmentDate} < ${endOfDay}
+          `,
 
-        sql`${appointments.status} IN (
-          'PENDING',
-          'CONFIRMED',
-          'CHECKED_IN'
-        )`
-      )
+          sql`
+            ${appointments.status} IN (
+              'PENDING',
+              'CONFIRMED',
+              'CHECKED_IN',
+              'RESCHEDULED'
+            )
+          `
+        )
+      );
+
+    return result.map(
+      (appointment) =>
+        appointment.appointmentTime
+    );  } catch (error) {
+    console.error(
+      "❌ getDoctorBookedSlots ERROR:",
+      error
     );
 
-  return result.map(
-    (appointment) =>
-      appointment.appointmentTime
-  );
+    throw error;
+  }
 };

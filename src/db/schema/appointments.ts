@@ -8,14 +8,10 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 
-import { users } from "./users";
+import { patientProfiles } from "./patient-profiles";
 import { doctorProfiles } from "./doctor_profiles";
 import { hospitals } from "./hospitals";
 import { departments } from "./departments";
-import {
-  appointmentStatusEnum,
-} from "./enums";
-
 
 export const appointments = pgTable(
   "appointments",
@@ -24,10 +20,24 @@ export const appointments = pgTable(
       .defaultRandom()
       .primaryKey(),
 
-    patientId: uuid("patient_id")
-      .references(() => users.id, {
+    /*
+     * API property:
+     * patientId
+     *
+     * Database column:
+     * patient_profile_id
+     *
+     * References:
+     * patient_profiles.id
+     */
+    patientId: uuid("patient_profile_id")
+      .references(() => patientProfiles.id, {
         onDelete: "cascade",
       })
+      .notNull(),
+
+    doctorProfileId: uuid("doctor_profile_id")
+      .references(() => doctorProfiles.id)
       .notNull(),
 
     hospitalId: uuid("hospital_id")
@@ -38,76 +48,50 @@ export const appointments = pgTable(
       .references(() => departments.id)
       .notNull(),
 
-    doctorProfileId: uuid("doctor_profile_id")
-      .references(() => doctorProfiles.id),
+    appointmentDate: timestamp("appointment_date", {
+      withTimezone: true,
+    }).notNull(),
 
-    appointmentDate: timestamp(
-      "appointment_date",
-      {
-        withTimezone: true,
-      }
-    ).notNull(),
+    appointmentTime: varchar("appointment_time", {
+      length: 10,
+    }),
 
-    appointmentTime: varchar(
-      "appointment_time",
-      {
-        length: 10,
-      }
-    ).notNull(),
+    consultationFee: integer("consultation_fee"),
 
-    consultationType: varchar(
-      "consultation_type",
-      {
-        length: 50,
-      }
-    ).default("IN_PERSON"),
-
-    symptoms: text("symptoms"),
+    status: text("status")
+      .default("PENDING")
+      .notNull(),
 
     notes: text("notes"),
 
-    tokenNumber: integer(
-      "token_number"
-    ),
-
-    status:
-      appointmentStatusEnum("status")
-        .default("PENDING")
-        .notNull(),
-
-    createdAt: timestamp(
-      "created_at",
-      {
-        withTimezone: true,
-      }
-    )
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+    })
       .defaultNow()
       .notNull(),
 
-    updatedAt: timestamp(
-      "updated_at",
-      {
-        withTimezone: true,
-      }
-    )
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+    })
       .defaultNow()
       .notNull(),
   },
+
   (table) => ({
-    patientIdx: index(
-      "appointment_patient_idx"
-    ).on(table.patientId),
+    patientIdx: index("appointment_patient_idx").on(
+      table.patientId
+    ),
 
-    doctorIdx: index(
-      "appointment_doctor_idx"
-    ).on(table.doctorProfileId),
+    doctorIdx: index("appointment_doctor_idx").on(
+      table.doctorProfileId
+    ),
 
-    hospitalIdx: index(
-      "appointment_hospital_idx"
-    ).on(table.hospitalId),
+    hospitalIdx: index("appointment_hospital_idx").on(
+      table.hospitalId
+    ),
 
-    departmentIdx: index(
-      "appointment_department_idx"
-    ).on(table.departmentId),
+    departmentIdx: index("appointment_department_idx").on(
+      table.departmentId
+    ),
   })
 );
