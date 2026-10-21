@@ -84,7 +84,15 @@ app.get("/health", async (_req, res) => {
       userCount: countRes.rows[0].count,
     });
   } catch (err: any) {
-    res.status(500).json({ status: "error", message: err.message });
+    res.status(500).json({
+      status: "error",
+      message: err?.message || String(err),
+      code: err?.code,
+      detail: err?.detail,
+      hint: err?.hint,
+      routine: err?.routine,
+      stack: err?.stack,
+    });
   }
 });
 
