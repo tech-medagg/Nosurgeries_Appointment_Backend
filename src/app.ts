@@ -3,6 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import path from "path";
 
+import { pool } from "./db";
 import routes from "./routes";
 
 // ─── Production safety check ─────────────────────────────────────────────────
@@ -72,6 +73,20 @@ app.use(
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(express.json());
 app.use("/uploads", express.static(path.resolve(__dirname, "../uploads")));
+
+app.get("/health", async (_req, res) => {
+  try {
+    const dbRes = await pool.query("SELECT current_database(), current_user");
+    const countRes = await pool.query("SELECT COUNT(*) FROM users");
+    res.json({
+      status: "ok",
+      db: dbRes.rows[0],
+      userCount: countRes.rows[0].count,
+    });
+  } catch (err: any) {
+    res.status(500).json({ status: "error", message: err.message });
+  }
+});
 
 app.use("/api", routes);
 
