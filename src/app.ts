@@ -9,7 +9,7 @@ import routes from "./routes";
 // Crash fast if critical secrets are missing in production so we never serve
 // with insecure defaults.
 if (process.env.NODE_ENV === "production") {
-  const required = ["JWT_SECRET", "DATABASE_URL", "ALLOWED_ORIGIN"];
+  const required = ["JWT_SECRET", "DATABASE_URL"];
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length > 0) {
     console.error(`❌ Missing required env vars: ${missing.join(", ")}`);
@@ -20,21 +20,52 @@ if (process.env.NODE_ENV === "production") {
 const app = express();
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
-// In development: allow localhost (Vite default port).
-// In production: restrict to the ALLOWED_ORIGIN env var (e.g. your Vercel URL).
-const allowedOrigins = process.env.ALLOWED_ORIGIN
-  ? process.env.ALLOWED_ORIGIN.split(",").map((o) => o.trim())
-  : ["http://localhost:5173", "http://localhost:3000"];
+const rawAllowed = process.env.ALLOWED_ORIGIN || "";
+const configuredOrigins = rawAllowed
+  .split(",")
+  .map((o) => o.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+const isOriginAllowed = (origin: string): boolean => {
+  const cleanOrigin = origin.replace(/\/+$/, "").toLowerCase();
+
+  // If wildcard or explicitly in configured list
+  if (
+    configuredOrigins.includes("*") ||
+    configuredOrigins.some((o) => o.toLowerCase() === cleanOrigin)
+  ) {
+    return true;
+  }
+
+  // Allow localhost & local network for development
+  if (
+    cleanOrigin.startsWith("http://localhost:") ||
+    cleanOrigin.startsWith("http://127.0.0.1:")
+  ) {
+    return true;
+  }
+
+  // Allow all Vercel domains (*.vercel.app)
+  if (/^https:\/\/[a-z0-9-_.]+\.vercel\.app$/i.test(cleanOrigin)) {
+    return true;
+  }
+
+  return false;
+};
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow same-origin requests (e.g. Postman, curl, server-to-server)
+      // Allow requests with no origin (like mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      callback(new Error(`CORS: origin '${origin}' not allowed`));
+      if (isOriginAllowed(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, false);
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
   })
 );
 
