@@ -84,13 +84,15 @@ app.get("/health", async (_req, res) => {
       userCount: countRes.rows[0].count,
     });
   } catch (err: any) {
+    const dbUrl = process.env.DATABASE_URL;
+    const maskedUrl = dbUrl
+      ? `${dbUrl.split("@")[0].replace(/:[^:]*$/, ":***")}@${dbUrl.split("@")[1] || ""}`
+      : "NOT_SET";
     res.status(500).json({
       status: "error",
+      database_url_configured: maskedUrl,
       message: err?.message || String(err),
       code: err?.code,
-      detail: err?.detail,
-      hint: err?.hint,
-      routine: err?.routine,
       stack: err?.stack,
     });
   }
