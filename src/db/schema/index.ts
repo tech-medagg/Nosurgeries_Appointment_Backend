@@ -7,3 +7,8 @@ export * from "./patient-profiles";
 export * from "./roles";
 export * from "./users";
 export * from "./doctor_schedules";
+export * from "./medical_reports";
+export * from "./reportCategoryEnum";
+export * from "./procedureStatusEnum";
+export * from "./consultationOutcomeEnum";
+export * from "./password_reset_tokens";

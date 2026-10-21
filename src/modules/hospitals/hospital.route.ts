@@ -8,7 +8,7 @@ import { authorize } from "../../middleware/authorize.middleware";
 const router = Router();
 
 /* ==========================================================
-   Create Hospital
+   Create Hospital (Admin Only)
 ========================================================== */
 
 router.post(
@@ -19,29 +19,41 @@ router.post(
 );
 
 /* ==========================================================
-   Get Hospitals
+   Get Hospitals (All Roles)
 ========================================================== */
 
 router.get(
   "/",
   authenticate,
-  authorize("SUPER_ADMIN", "ADMIN"),
+  authorize(
+    "SUPER_ADMIN",
+    "ADMIN",
+    "DOCTOR",
+    "COORDINATOR",
+    "PATIENT"
+  ),
   hospitalController.getHospitals
 );
 
 /* ==========================================================
-   Get Hospital By Id
+   Get Hospital By Id (All Roles)
 ========================================================== */
 
 router.get(
   "/:id",
   authenticate,
-  authorize("SUPER_ADMIN", "ADMIN"),
+  authorize(
+    "SUPER_ADMIN",
+    "ADMIN",
+    "DOCTOR",
+    "COORDINATOR",
+    "PATIENT"
+  ),
   hospitalController.getHospitalById
 );
 
 /* ==========================================================
-   Update Hospital
+   Update Hospital (Admin Only)
 ========================================================== */
 
 router.put(
@@ -52,7 +64,7 @@ router.put(
 );
 
 /* ==========================================================
-   Delete Hospital
+   Delete Hospital (Admin Only)
 ========================================================== */
 
 router.delete(

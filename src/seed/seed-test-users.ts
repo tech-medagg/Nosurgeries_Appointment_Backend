@@ -1,0 +1,39 @@
+import { db } from "../db";
+import { roles } from "../db/schema/roles";
+import { users } from "../db/schema/users";
+import bcrypt from "bcrypt";
+import { eq } from "drizzle-orm";
+
+const TEST_PASSWORD = "12345678";
+
+async function seedTestUsers() {
+  try {
+    console.log("Seeding test users...");
+    const hashedPassword = await bcrypt.hash(TEST_PASSWORD, 10);
+    const allRoles = await db.select().from(roles);
+    const getRole = (name: string) => allRoles.find((r) => r.name === name);
+    const patientRole = getRole("PATIENT");
+    const doctorRole  = getRole("DOCTOR");
+    const adminRole   = getRole("ADMIN");
+    if (!patientRole || !doctorRole || !adminRole) {
+      console.error("Roles not found. Run db:seed first.");
+      process.exit(1);
+    }
+    const testUsers = [
+      { mobile: "9344228002", fullName: "Test Patient", email: "patient@test.com", roleId: patientRole.id, role: "PATIENT" },
+      { mobile: "9344228003", fullName: "Test Doctor",  email: "doctor@test.com",  roleId: doctorRole.id,  role: "DOCTOR"  },
+      { mobile: "9344228004", fullName: "Test Admin",   email: "admin@test.com",   roleId: adminRole.id,   role: "ADMIN"   },
+    ];
+    for (const u of testUsers) {
+      const existing = await db.select().from(users).where(eq(users.mobile, u.mobile)).limit(1);
+      if (existing.length > 0) { console.log(`${u.role} (${u.mobile}) already exists - skipping.`); continue; }
+      await db.insert(users).values({ roleId: u.roleId, fullName: u.fullName, email: u.email, mobile: u.mobile, password: hashedPassword, status: "ACTIVE", isEmailVerified: true, isMobileVerified: true });
+      console.log(`Created ${u.role}: ${u.mobile} / ${TEST_PASSWORD}`);
+    }
+    console.log("Done!");
+  } catch (error) {
+    console.error("Failed:", error);
+  }
+  process.exit(0);
+}
+seedTestUsers();

@@ -51,6 +51,11 @@ export interface DoctorAvailability {
 
   doctorName: string;
 
+  hospitalId?: string;
+  hospitalName?: string;
+  departmentId?: string;
+  departmentName?: string;
+
   dayOfWeek: string;
 
   startTime: string;

@@ -7,6 +7,10 @@ import {
   GetDoctorSchedulesQuery,
 } from "./doctorSchedule.validation";
 
+import { db } from "../../db";
+import { appointments } from "../../db/schema/appointments";
+import { eq, and, sql } from "drizzle-orm";
+
 /* ======================================================
    Create Schedule
 ====================================================== */
@@ -26,24 +30,26 @@ export const createDoctorSchedule = async (
     };
   }
 
-  // Check Existing Schedule
+  // Check Existing Schedule for this Day
   const existing =
     await doctorScheduleRepository.findByDoctorId(
       data.doctorProfileId
     );
 
-  const duplicate = existing.find(
-    (schedule) =>
-      schedule.dayOfWeek === data.dayOfWeek &&
-      schedule.startTime === data.startTime &&
-      schedule.endTime === data.endTime
+  const existingForDay = existing.find(
+    (schedule) => schedule.dayOfWeek === data.dayOfWeek
   );
 
-  if (duplicate) {
+  if (existingForDay) {
+    const updated = await doctorScheduleRepository.update(
+      existingForDay.id,
+      data
+    );
+
     return {
-      success: false,
-      message:
-        "Schedule already exists for this doctor.",
+      success: true,
+      message: "Doctor schedule updated successfully.",
+      data: updated,
     };
   }
 
@@ -152,11 +158,46 @@ export const deleteDoctorSchedule = async (
     };
   }
 
+  /* -----------------------------------------------
+     Hard-delete all future active appointments for
+     this doctor on the deleted schedule's day.
+
+     We use SQL EXTRACT(DOW ...) to match the day
+     of week. Hard-deleting means the appointments
+     disappear entirely from the patient dashboard
+     rather than showing as CANCELLED entries.
+  ----------------------------------------------- */
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const dowMap: Record<string, number> = {
+    SUNDAY: 0,
+    MONDAY: 1,
+    TUESDAY: 2,
+    WEDNESDAY: 3,
+    THURSDAY: 4,
+    FRIDAY: 5,
+    SATURDAY: 6,
+  };
+  const targetDow = dowMap[schedule.dayOfWeek];
+
+  if (targetDow !== undefined) {
+    await db
+      .delete(appointments)
+      .where(
+        and(
+          eq(appointments.doctorProfileId, schedule.doctorProfileId),
+          sql`${appointments.appointmentDate} >= ${today}`,
+          sql`EXTRACT(DOW FROM ${appointments.appointmentDate}) = ${targetDow}`,
+          sql`${appointments.status} IN ('PENDING', 'CONFIRMED', 'RESCHEDULED', 'CHECKED_IN')`
+        )
+      );
+  }
+
   await doctorScheduleRepository.remove(id);
 
   return {
     success: true,
-    message:
-      "Doctor schedule deleted successfully.",
-    };
+    message: "Doctor schedule deleted successfully. All related appointments have been removed.",
+  };
 };

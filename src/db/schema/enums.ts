@@ -42,12 +42,12 @@ export const leadPriorityEnum = pgEnum("lead_priority", [
  * Appointment Status
  */
 export const appointmentStatusEnum = pgEnum("appointment_status", [
-      "PENDING",
-      "CONFIRMED",
-      "CHECKED_IN",
-      "COMPLETED",
-      "CANCELLED",
-      "RESCHEDULED",
+  "PENDING",
+  "CONFIRMED",
+  "CHECKED_IN",
+  "COMPLETED",
+  "CANCELLED",
+  "RESCHEDULED",
 ]);
 
 /**
@@ -88,3 +88,8 @@ export const weekDayEnum = pgEnum("week_day", [
   "SATURDAY",
   "SUNDAY",
 ]);
+
+export * from "./reportCategoryEnum";
+export * from "./procedureStatusEnum";
+export * from "./consultationOutcomeEnum";
+

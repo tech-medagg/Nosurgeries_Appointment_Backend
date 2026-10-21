@@ -1,6 +1,15 @@
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "super-secret-key";
+// ─── Guard: never run with a missing / default secret ─────────────────────────
+if (!process.env.JWT_SECRET) {
+  if (process.env.NODE_ENV === "production") {
+    console.error("❌ JWT_SECRET env var is not set. Refusing to start.");
+    process.exit(1);
+  }
+  console.warn("⚠️  JWT_SECRET not set — using dev-only fallback. Set it before deploying.");
+}
+
+const JWT_SECRET = process.env.JWT_SECRET ?? "dev-only-fallback-secret-do-not-use-in-prod";
 
 const JWT_EXPIRES_IN =
   process.env.JWT_EXPIRES_IN ?? "1d";

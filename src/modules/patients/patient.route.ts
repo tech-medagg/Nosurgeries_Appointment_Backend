@@ -8,24 +8,49 @@ import { authorize } from "../../middleware/authorize.middleware";
 const router = Router();
 
 /* ======================================================
-   Create Patient
+   My Patient Profile
+====================================================== */
+
+router.get(
+  "/me",
+  authenticate,
+  authorize("SUPER_ADMIN", "ADMIN", "COORDINATOR", "PATIENT"),
+  patientController.getMyProfile
+);
+
+router.post(
+  "/me",
+  authenticate,
+  authorize("SUPER_ADMIN", "ADMIN", "COORDINATOR", "PATIENT"),
+  patientController.createMyProfile
+);
+
+router.put(
+  "/me",
+  authenticate,
+  authorize("SUPER_ADMIN", "ADMIN", "COORDINATOR", "PATIENT"),
+  patientController.updateMyProfile
+);
+
+/* ======================================================
+   Create Patient (Admin)
 ====================================================== */
 
 router.post(
   "/",
   authenticate,
-  authorize("SUPER_ADMIN", "ADMIN"),
+  authorize("SUPER_ADMIN", "ADMIN", "COORDINATOR"),
   patientController.createPatient
 );
 
 /* ======================================================
-   Get All Patients
+   Get All Patients (Admin)
 ====================================================== */
 
 router.get(
   "/",
   authenticate,
-  authorize("SUPER_ADMIN", "ADMIN"),
+  authorize("SUPER_ADMIN", "ADMIN", "COORDINATOR"),
   patientController.getPatients
 );
 
@@ -36,7 +61,7 @@ router.get(
 router.get(
   "/:id",
   authenticate,
-  authorize("SUPER_ADMIN", "ADMIN"),
+  authorize("SUPER_ADMIN", "ADMIN", "COORDINATOR", "PATIENT"),
   patientController.getPatientById
 );
 
@@ -47,7 +72,7 @@ router.get(
 router.put(
   "/:id",
   authenticate,
-  authorize("SUPER_ADMIN", "ADMIN"),
+  authorize("SUPER_ADMIN", "ADMIN", "COORDINATOR"),
   patientController.updatePatient
 );
 

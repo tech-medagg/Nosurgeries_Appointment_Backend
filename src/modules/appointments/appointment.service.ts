@@ -232,42 +232,42 @@ export const createAppointment = async (
        Check Doctor Schedule
     --------------------------------------------- */
 
- const schedule =
-  await appointmentRepository.getDoctorSchedule(
-    data.doctorProfileId,
-    dayOfWeek
-  );
+    const schedule =
+      await appointmentRepository.getDoctorSchedule(
+        data.doctorProfileId,
+        dayOfWeek
+      );
 
-if (!schedule) {
-  return {
-    success: false,
-    message:
-      "Doctor is not available on this day.",
-  };
-}
+    if (!schedule) {
+      return {
+        success: false,
+        message:
+          "Doctor is not available on this day.",
+      };
+    }
 
-/* ---------------------------------------------
-   Validate Appointment Time
---------------------------------------------- */
+    /* ---------------------------------------------
+       Validate Appointment Time
+    --------------------------------------------- */
 
-const availableSlots =
-  generateTimeSlots(
-    schedule.startTime,
-    schedule.endTime,
-    schedule.slotDuration
-  );
+    const availableSlots =
+      generateTimeSlots(
+        schedule.startTime,
+        schedule.endTime,
+        schedule.slotDuration
+      );
 
-if (
-  !availableSlots.includes(
-    data.appointmentTime
-  )
-) {
-  return {
-    success: false,
-    message:
-      "Invalid appointment time. Please select an available slot.",
-  };
-}
+    if (
+      !availableSlots.includes(
+        data.appointmentTime
+      )
+    ) {
+      return {
+        success: false,
+        message:
+          "Invalid appointment time. Please select an available slot.",
+      };
+    }
 
     /* ---------------------------------------------
        Check Doctor Daily Capacity
@@ -338,21 +338,32 @@ export const getAppointmentById = async (
 ====================================================== */
 
 export const getAppointments = async (
-  query: GetAppointmentsQuery
+  query: GetAppointmentsQuery,
+  userRole?: string
 ) => {
   const result =
     await appointmentRepository.getAll(
       query
     );
 
+  const formattedAppointments = result.appointments.map((apt: any) => {
+    const isOldPatient = Number(apt.patientAppointmentCount ?? 0) > 1;
+    if (userRole === "DOCTOR") {
+      const { patientMobile, patientEmail, ...rest } = apt;
+      return { ...rest, isOldPatient };
+    }
+    return { ...apt, isOldPatient };
+  });
+
   return {
     success: true,
     ...result,
+    appointments: formattedAppointments,
   };
 };
 
 /* ======================================================
-   Update Appointment
+   Update Appointment / Reschedule Appointment
 ====================================================== */
 
 export const updateAppointment = async (
@@ -364,9 +375,7 @@ export const updateAppointment = async (
   --------------------------------------------- */
 
   const existing =
-    await appointmentRepository.findById(
-      id
-    );
+    await appointmentRepository.findById(id);
 
   if (!existing) {
     return {
@@ -376,43 +385,129 @@ export const updateAppointment = async (
   }
 
   /* ---------------------------------------------
-     If Doctor Is Being Assigned/Changed
-     Check Doctor
+     Prevent Updating Completed / Cancelled
+     Appointments
   --------------------------------------------- */
 
-  if (data.doctorProfileId) {
+  if (
+    existing.status === "CANCELLED" ||
+    existing.status === "COMPLETED"
+  ) {
+    return {
+      success: false,
+      message:
+        `Appointment cannot be updated because it is already ${existing.status.toLowerCase()}.`,
+    };
+  }
+
+  /* ---------------------------------------------
+     Validate Status Transition
+  --------------------------------------------- */
+
+  if (data.status) {
+    const currentStatus = existing.status;
+    const newStatus = data.status;
+
+    const allowedTransitions: Record<
+      string,
+      string[]
+    > = {
+      PENDING: [
+        "CONFIRMED",
+        "CANCELLED",
+        "RESCHEDULED",
+      ],
+
+      CONFIRMED: [
+        "CHECKED_IN",
+        "CANCELLED",
+        "RESCHEDULED",
+      ],
+
+      CHECKED_IN: [
+        "COMPLETED",
+      ],
+
+      RESCHEDULED: [
+        "CONFIRMED",
+        "CANCELLED",
+        "RESCHEDULED",
+      ],
+
+      COMPLETED: [],
+
+      CANCELLED: [],
+    };
+
+    const allowedStatuses =
+      allowedTransitions[currentStatus] ?? [];
+
+    if (
+      !allowedStatuses.includes(newStatus)
+    ) {
+      return {
+        success: false,
+        message:
+          `Invalid appointment status transition from ${currentStatus} to ${newStatus}.`,
+      };
+    }
+  }
+
+  /* ---------------------------------------------
+     Determine Final Appointment Values
+
+     If a new value is provided, use it.
+     Otherwise keep the existing value.
+  --------------------------------------------- */
+
+  const finalDoctorProfileId =
+    data.doctorProfileId ??
+    existing.doctorProfileId;
+
+  const finalAppointmentDate =
+    data.appointmentDate
+      ? new Date(data.appointmentDate)
+      : existing.appointmentDate;
+
+  const finalAppointmentTime =
+    data.appointmentTime ??
+    existing.appointmentTime;
+
+  /* ---------------------------------------------
+     Validate Appointment Date
+  --------------------------------------------- */
+
+  if (
+    Number.isNaN(
+      finalAppointmentDate.getTime()
+    )
+  ) {
+    return {
+      success: false,
+      message:
+        "Invalid appointment date.",
+    };
+  }
+
+  /* ---------------------------------------------
+     If Doctor Is Assigned
+  --------------------------------------------- */
+
+  if (finalDoctorProfileId) {
+    /* ---------------------------------------------
+       Check Doctor
+    --------------------------------------------- */
+
     const doctor =
       await appointmentRepository.doctorExists(
-        data.doctorProfileId
+        finalDoctorProfileId
       );
 
     if (!doctor) {
       return {
         success: false,
-        message: "Doctor not found.",
-      };
-    }
-
-    /* ---------------------------------------------
-       Determine Appointment Date
-    --------------------------------------------- */
-
-    const appointmentDate =
-      data.appointmentDate
-        ? new Date(
-            data.appointmentDate
-          )
-        : existing.appointmentDate;
-
-    if (
-      Number.isNaN(
-        appointmentDate.getTime()
-      )
-    ) {
-      return {
-        success: false,
         message:
-          "Invalid appointment date.",
+          "Doctor not found.",
       };
     }
 
@@ -422,7 +517,7 @@ export const updateAppointment = async (
 
     const dayOfWeek =
       getDayOfWeek(
-        appointmentDate
+        finalAppointmentDate
       );
 
     /* ---------------------------------------------
@@ -431,7 +526,7 @@ export const updateAppointment = async (
 
     const schedule =
       await appointmentRepository.getDoctorSchedule(
-        data.doctorProfileId,
+        finalDoctorProfileId,
         dayOfWeek
       );
 
@@ -444,27 +539,120 @@ export const updateAppointment = async (
     }
 
     /* ---------------------------------------------
-       Check Doctor Capacity
+       Generate Valid Time Slots
+    --------------------------------------------- */
+
+    const availableSlots =
+      generateTimeSlots(
+        schedule.startTime,
+        schedule.endTime,
+        schedule.slotDuration
+      );
+
+/* ---------------------------------------------
+   Validate Appointment Time
+--------------------------------------------- */
+
+if (!finalAppointmentTime) {
+  return {
+    success: false,
+    message:
+      "Appointment time is required.",
+  };
+}
+    if (
+      !availableSlots.includes(
+        finalAppointmentTime
+      )
+    ) {
+      return {
+        success: false,
+        message:
+          "Invalid appointment time. Please select an available slot.",
+      };
+    }
+
+    /* ---------------------------------------------
+       Get Appointment Day Range
+    --------------------------------------------- */
+
+    const {
+      startOfDay,
+      endOfDay,
+    } = getDayRange(
+      finalAppointmentDate
+    );
+
+    /* ---------------------------------------------
+       Get Booked Slots
+    --------------------------------------------- */
+
+    const bookedSlots =
+      await appointmentRepository.getDoctorBookedSlots(
+        finalDoctorProfileId,
+        startOfDay,
+        endOfDay
+      );
+
+    /* ---------------------------------------------
+       Check Slot Availability
+
+       The current appointment's existing time
+       should not block itself.
+
+       If the requested time belongs to another
+       appointment, reject the reschedule.
+    --------------------------------------------- */
+
+    const changingSlot =
+      finalDoctorProfileId !==
+        existing.doctorProfileId ||
+      finalAppointmentDate.getTime() !==
+        existing.appointmentDate.getTime() ||
+      finalAppointmentTime !==
+        existing.appointmentTime;
+
+    if (
+      changingSlot &&
+      bookedSlots.includes(
+        finalAppointmentTime
+      )
+    ) {
+      return {
+        success: false,
+        message:
+          "This appointment slot is already booked.",
+      };
+    }
+
+    /* ---------------------------------------------
+       Check Doctor Daily Capacity
     --------------------------------------------- */
 
     const appointmentCount =
       await appointmentRepository.countDoctorAppointments(
-        data.doctorProfileId,
-        appointmentDate
+        finalDoctorProfileId,
+        finalAppointmentDate
       );
 
-    /*
-      If this appointment already belongs
-      to the same doctor, exclude it from
-      the capacity calculation.
-    */
+    /* ---------------------------------------------
+       Exclude Current Appointment From Capacity
+
+       When moving the same appointment within
+       the same doctor/date, it should not count
+       against capacity twice.
+    --------------------------------------------- */
 
     const sameDoctor =
       existing.doctorProfileId ===
-      data.doctorProfileId;
+      finalDoctorProfileId;
+
+    const sameDate =
+      existing.appointmentDate.getTime() ===
+      finalAppointmentDate.getTime();
 
     const adjustedCount =
-      sameDoctor
+      sameDoctor && sameDate
         ? Math.max(
             appointmentCount - 1,
             0
@@ -481,6 +669,20 @@ export const updateAppointment = async (
           "Doctor appointment capacity is full for this day.",
       };
     }
+  }
+
+  /* ---------------------------------------------
+     Mark As Rescheduled
+
+     If appointment date or time changes and no explicit
+     status was provided, automatically change status to RESCHEDULED.
+  --------------------------------------------- */
+
+  if (
+    !data.status &&
+    (data.appointmentDate || data.appointmentTime)
+  ) {
+    data.status = "RESCHEDULED";
   }
 
   /* ---------------------------------------------
@@ -532,16 +734,19 @@ export const deleteAppointment = async (
 ====================================================== */
 
 export const getAvailableDoctors = async (
-  hospitalId: string,
-  departmentId: string,
+  hospitalId: string | undefined,
+  departmentId: string | undefined,
   appointmentDate: string
 ) => {
   /* ---------------------------------------------
      Validate Appointment Date
   --------------------------------------------- */
 
+  const [yearStr, monthStr, dayStr] = appointmentDate.split("-");
   const date =
-    new Date(appointmentDate);
+    yearStr && monthStr && dayStr
+      ? new Date(Number(yearStr), Number(monthStr) - 1, Number(dayStr), 12, 0, 0)
+      : new Date(appointmentDate);
 
   if (
     Number.isNaN(
@@ -556,35 +761,39 @@ export const getAvailableDoctors = async (
   }
 
   /* ---------------------------------------------
-     Check Hospital
+     Check Hospital (if specified)
   --------------------------------------------- */
 
-  const hospital =
-    await appointmentRepository.hospitalExists(
-      hospitalId
-    );
+  if (hospitalId) {
+    const hospital =
+      await appointmentRepository.hospitalExists(
+        hospitalId
+      );
 
-  if (!hospital) {
-    return {
-      success: false,
-      message: "Hospital not found.",
-    };
+    if (!hospital) {
+      return {
+        success: false,
+        message: "Hospital not found.",
+      };
+    }
   }
 
   /* ---------------------------------------------
-     Check Department
+     Check Department (if specified)
   --------------------------------------------- */
 
-  const department =
-    await appointmentRepository.departmentExists(
-      departmentId
-    );
+  if (departmentId) {
+    const department =
+      await appointmentRepository.departmentExists(
+        departmentId
+      );
 
-  if (!department) {
-    return {
-      success: false,
-      message: "Department not found.",
-    };
+    if (!department) {
+      return {
+        success: false,
+        message: "Department not found.",
+      };
+    }
   }
 
   /* ---------------------------------------------
@@ -643,45 +852,24 @@ export const getAvailableDoctors = async (
              Get Booked Slots
           --------------------------------------- */
 
-const bookedSlots =
-  await appointmentRepository.getDoctorBookedSlots(
-    doctor.doctorProfileId,
-    startOfDay,
-    endOfDay
-  );
+          const bookedSlots =
+            await appointmentRepository.getDoctorBookedSlots(
+              doctor.doctorProfileId,
+              startOfDay,
+              endOfDay
+            );
 
-console.log(
-  "BOOKED SLOTS:",
-  doctor.doctorProfileId,
-  bookedSlots
-);
+          const bookedSlotTimes = bookedSlots.filter(
+            (time): time is string =>
+              typeof time === "string" &&
+              time.length > 0
+          );
 
-// const bookedSlotTimes = bookedSlots
-//   .map((booking) => booking.appointmentTime)
-//   .filter(
-//     (time): time is string =>
-//       time !== null
-//   );
-const bookedSlotTimes = bookedSlots.filter(
-  (time): time is string =>
-    typeof time === "string" &&
-    time.length > 0
-);
-console.log(
-  "BOOKED SLOT TIMES:",
-  bookedSlotTimes
-);
-
-const availableSlots =
-  allSlots.filter(
-    (slot) =>
-      !bookedSlotTimes.includes(slot)
-  );
-
-console.log(
-  "AVAILABLE SLOTS:",
-  availableSlots
-);
+          const availableSlots =
+            allSlots.filter(
+              (slot) =>
+                !bookedSlotTimes.includes(slot)
+            );
           /* ---------------------------------------
              Return Doctor Availability
           --------------------------------------- */
@@ -701,6 +889,18 @@ console.log(
                 doctor.lastName ?? ""
               }`.trim(),
 
+            hospitalId:
+              doctor.hospitalId,
+
+            hospitalName:
+              doctor.hospitalName ?? "",
+
+            departmentId:
+              doctor.departmentId,
+
+            departmentName:
+              doctor.departmentName ?? "",
+
             dayOfWeek:
               doctor.dayOfWeek,
 
@@ -719,6 +919,8 @@ console.log(
             bookedPatients:
               bookedSlotTimes.length,
 
+            allSlots,
+            bookedSlots: bookedSlotTimes,
             availableSlots,
           };
         }

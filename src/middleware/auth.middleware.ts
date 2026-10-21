@@ -3,11 +3,11 @@ import { NextFunction, Request, Response } from "express";
 import { verifyAccessToken, JwtTokenPayload } from "../utils/jwt";
 
 export interface AuthRequest extends Request {
-  user?: JwtTokenPayload;
+  user?: any;
 }
 
 export const authenticate = (
-  req: AuthRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ): void => {

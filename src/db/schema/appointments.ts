@@ -37,8 +37,7 @@ export const appointments = pgTable(
       .notNull(),
 
     doctorProfileId: uuid("doctor_profile_id")
-      .references(() => doctorProfiles.id)
-      .notNull(),
+      .references(() => doctorProfiles.id),
 
     hospitalId: uuid("hospital_id")
       .references(() => hospitals.id)
@@ -56,7 +55,7 @@ export const appointments = pgTable(
       length: 10,
     }),
 
-    consultationFee: integer("consultation_fee"),
+    // consultationFee field removed as per new requirements
 
     status: text("status")
       .default("PENDING")
@@ -93,5 +92,8 @@ export const appointments = pgTable(
     departmentIdx: index("appointment_department_idx").on(
       table.departmentId
     ),
+    // New indexes for high‑traffic queries
+    dateIdx: index("appointment_date_idx").on(table.appointmentDate),
+    statusIdx: index("appointment_status_idx").on(table.status),
   })
 );

@@ -84,9 +84,13 @@ export const getAppointments = async (
     const query =
       getAppointmentsSchema.parse(req.query);
 
+    const user = (req as any).user;
+    const userRole = user?.roleName;
+
     const result =
       await appointmentService.getAppointments(
-        query
+        query,
+        userRole
       );
 
     return res.status(200).json(result);
@@ -128,7 +132,7 @@ export const updateAppointment = async (
       );
 
     return res
-      .status(result.success ? 200 : 404)
+      .status(result.success ? 200 : 400)
       .json(result);
   } catch (error: any) {
     return res.status(400).json({

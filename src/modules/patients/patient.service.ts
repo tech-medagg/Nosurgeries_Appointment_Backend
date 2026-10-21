@@ -5,7 +5,10 @@ import {
   UpdatePatientInput,
   GetPatientsQuery,
 } from "./patient.validation";
-
+import {
+  CreateMyPatientProfileInput,
+  UpdateMyPatientProfileInput,
+} from "./patient.validation";
 /* ======================================================
    Create Patient
 ====================================================== */
@@ -148,5 +151,154 @@ export const deletePatient = async (
     success: true,
     message:
       "Patient deleted successfully.",
+  };
+};
+
+/* ======================================================
+   Get Patient By User Id
+====================================================== */
+
+export const getPatientByUserId = async (
+  userId: string
+) => {
+  const patient =
+    await patientRepository.findByUserId(
+      userId
+    );
+
+  if (!patient) {
+    return {
+      success: false,
+      message: "Patient profile not found.",
+    };
+  }
+
+  return {
+    success: true,
+    data: patient,
+  };
+};
+
+/* ======================================================
+   Get My Patient Profile
+====================================================== */
+
+export const getMyProfile = async (
+  userId: string
+) => {
+  let patient =
+    await patientRepository.findMyProfile(
+      userId
+    );
+
+  if (!patient) {
+    const userRecord = await patientRepository.findUserById(userId);
+    if (userRecord) {
+      const nameParts = userRecord.fullName ? userRecord.fullName.trim().split(" ") : ["Patient"];
+      const firstName = nameParts[0] || "Patient";
+      const lastName = nameParts.slice(1).join(" ") || "";
+      await patientRepository.createMyProfile(userId, {
+        firstName,
+        lastName,
+        gender: "OTHER",
+      } as any);
+      patient = await patientRepository.findMyProfile(userId);
+    }
+  }
+
+  if (!patient) {
+    return {
+      success: false,
+      message: "Patient profile not found.",
+    };
+  }
+
+  return {
+    success: true,
+    data: patient,
+  };
+};
+
+
+
+/* ======================================================
+   Create My Patient Profile
+====================================================== */
+
+export const createMyProfile = async (
+  userId: string,
+  data: CreateMyPatientProfileInput
+) => {
+  const existing =
+    await patientRepository.findByUserId(
+      userId
+    );
+
+  if (existing) {
+    return {
+      success: false,
+      message: "Patient profile already exists.",
+    };
+  }
+
+  const patient =
+    await patientRepository.createMyProfile(
+      userId,
+      data
+    );
+
+  if (!patient) {
+    return {
+      success: false,
+      message: "Failed to create patient profile.",
+    };
+  }
+
+  return {
+    success: true,
+    message:
+      "Patient profile created successfully.",
+    data: patient,
+  };
+};
+
+/* ======================================================
+   Update My Patient Profile
+====================================================== */
+
+export const updateMyProfile = async (
+  userId: string,
+  data: UpdateMyPatientProfileInput
+) => {
+  const existing =
+    await patientRepository.findByUserId(
+      userId
+    );
+
+  if (!existing) {
+    return {
+      success: false,
+      message: "Patient profile not found.",
+    };
+  }
+
+  const patient =
+    await patientRepository.updateMyProfile(
+      userId,
+      data
+    );
+
+  if (!patient) {
+    return {
+      success: false,
+      message: "Failed to update patient profile.",
+    };
+  }
+
+  return {
+    success: true,
+    message:
+      "Patient profile updated successfully.",
+    data: patient,
   };
 };

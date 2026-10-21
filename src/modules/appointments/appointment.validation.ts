@@ -19,7 +19,8 @@ export const createAppointmentSchema = z.object({
 
   doctorProfileId: z
     .string()
-    .uuid(),
+    .uuid()
+    .optional(),
 
   appointmentDate: z
     .string()
@@ -35,11 +36,7 @@ export const createAppointmentSchema = z.object({
       "Appointment time is required."
     ),
 
-  consultationFee: z
-    .number()
-    .int()
-    .nonnegative()
-    .optional(),
+
 
   notes: z
     .string()
@@ -80,11 +77,7 @@ export const updateAppointmentSchema =
       .string()
       .optional(),
 
-    consultationFee: z
-      .number()
-      .int()
-      .nonnegative()
-      .optional(),
+
 
     notes: z
       .string()
@@ -115,6 +108,11 @@ export const getAppointmentsSchema =
     limit: z.coerce
       .number()
       .default(10),
+
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+
+    cursor: z.string().optional(),
 
     patientId: z
       .string()
@@ -180,13 +178,15 @@ export const getDoctorAvailabilitySchema =
       .string()
       .uuid(
         "Invalid hospital ID."
-      ),
+      )
+      .optional(),
 
     departmentId: z
       .string()
       .uuid(
         "Invalid department ID."
-      ),
+      )
+      .optional(),
 
     appointmentDate: z
       .string()

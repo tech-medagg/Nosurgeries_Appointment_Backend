@@ -18,6 +18,7 @@ import {
 import { doctorSchedules } from "../../db/schema/doctor_schedules";
 import { appointments } from "../../db/schema/appointments";
 import { patientProfiles } from "../../db/schema/patient-profiles";
+import { users } from "../../db/schema/users";
 import { hospitals } from "../../db/schema/hospitals";
 import { departments } from "../../db/schema/departments";
 import { doctorProfiles } from "../../db/schema/doctor_profiles";
@@ -231,10 +232,6 @@ export const doctorExists = async (
    Create Appointment
 ====================================================== */
 
-/* ======================================================
-   Create Appointment
-====================================================== */
-
 export const create = async (
   data: CreateAppointmentInput
 ) => {
@@ -247,6 +244,37 @@ export const create = async (
   const endOfDay = new Date(appointmentDate);
   endOfDay.setHours(23, 59, 59, 999);
 
+  const existingCheckConditions: SQL[] = [
+    sql`
+      ${appointments.appointmentDate}
+      >= ${startOfDay}
+    `,
+    sql`
+      ${appointments.appointmentDate}
+      <= ${endOfDay}
+    `,
+    eq(
+      appointments.appointmentTime,
+      data.appointmentTime
+    ),
+    sql`
+      ${appointments.status} IN (
+        'PENDING',
+        'CONFIRMED',
+        'CHECKED_IN',
+        'RESCHEDULED'
+      )
+    `,
+  ];
+  if (data.doctorProfileId) {
+    existingCheckConditions.push(
+      eq(
+        appointments.doctorProfileId,
+        data.doctorProfileId
+      )
+    );
+  }
+
   // Check whether this doctor already has this time booked
   const existingAppointment = await db
     .select({
@@ -255,38 +283,7 @@ export const create = async (
       status: appointments.status,
     })
     .from(appointments)
-    .where(
-      and(
-        eq(
-          appointments.doctorProfileId,
-          data.doctorProfileId
-        ),
-
-        sql`
-          ${appointments.appointmentDate}
-          >= ${startOfDay}
-        `,
-
-        sql`
-          ${appointments.appointmentDate}
-          <= ${endOfDay}
-        `,
-
-        eq(
-          appointments.appointmentTime,
-          data.appointmentTime
-        ),
-
-        sql`
-          ${appointments.status} IN (
-            'PENDING',
-            'CONFIRMED',
-            'CHECKED_IN',
-            'RESCHEDULED'
-          )
-        `
-      )
-    )
+    .where(and(...existingCheckConditions))
     .limit(1);
 
   // Prevent duplicate booking
@@ -297,25 +294,20 @@ export const create = async (
   }
 
   // Create appointment
+  const insertData: any = {
+    patientId: data.patientId,
+    hospitalId: data.hospitalId,
+    departmentId: data.departmentId,
+    appointmentDate,
+    appointmentTime: data.appointmentTime,
+    notes: data.notes,
+  };
+  if (data.doctorProfileId) {
+    insertData.doctorProfileId = data.doctorProfileId;
+  }
   const [appointment] = await db
     .insert(appointments)
-    .values({
-      patientId: data.patientId,
-
-      hospitalId: data.hospitalId,
-
-      departmentId: data.departmentId,
-
-      doctorProfileId: data.doctorProfileId,
-
-      appointmentDate,
-
-      appointmentTime: data.appointmentTime,
-
-      consultationFee: data.consultationFee,
-
-      notes: data.notes,
-    })
+    .values(insertData)
     .returning();
 
   return appointment;
@@ -326,8 +318,8 @@ export const create = async (
 ====================================================== */
 
 export const getAvailableDoctors = async (
-  hospitalId: string,
-  departmentId: string,
+  hospitalId: string | undefined,
+  departmentId: string | undefined,
   appointmentDate: Date
 ) => {
   const dayOfWeek = [
@@ -340,71 +332,49 @@ export const getAvailableDoctors = async (
     "SATURDAY",
   ][appointmentDate.getDay()];
 
+  const conditions = [
+    eq(doctorSchedules.dayOfWeek, dayOfWeek ?? "SUNDAY"),
+    eq(doctorSchedules.isAvailable, true),
+    eq(doctorProfiles.isAvailable, true),
+  ];
+
+  if (hospitalId) {
+    conditions.push(eq(doctorProfiles.hospitalId, hospitalId));
+  }
+
+  if (departmentId) {
+    conditions.push(eq(doctorProfiles.departmentId, departmentId));
+  }
+
   const doctors = await db
     .select({
-      doctorProfileId:
-        doctorProfiles.id,
-
-      firstName:
-        doctorProfiles.firstName,
-
-      lastName:
-        doctorProfiles.lastName,
-
-      dayOfWeek:
-        doctorSchedules.dayOfWeek,
-
-      startTime:
-        doctorSchedules.startTime,
-
-      endTime:
-        doctorSchedules.endTime,
-
-      slotDuration:
-        doctorSchedules.slotDuration,
-
-      maxPatients:
-        doctorSchedules.maxPatients,
+      doctorProfileId: doctorProfiles.id,
+      firstName: doctorProfiles.firstName,
+      lastName: doctorProfiles.lastName,
+      hospitalId: doctorProfiles.hospitalId,
+      departmentId: doctorProfiles.departmentId,
+      hospitalName: hospitals.name,
+      departmentName: departments.name,
+      dayOfWeek: doctorSchedules.dayOfWeek,
+      startTime: doctorSchedules.startTime,
+      endTime: doctorSchedules.endTime,
+      slotDuration: doctorSchedules.slotDuration,
+      maxPatients: doctorSchedules.maxPatients,
     })
-
     .from(doctorProfiles)
-
     .innerJoin(
       doctorSchedules,
-      eq(
-        doctorProfiles.id,
-        doctorSchedules.doctorProfileId
-      )
+      eq(doctorProfiles.id, doctorSchedules.doctorProfileId)
     )
-
-    .where(
-      and(
-        eq(
-          doctorProfiles.hospitalId,
-          hospitalId
-        ),
-
-        eq(
-          doctorProfiles.departmentId,
-          departmentId
-        ),
-
-        eq(
-          doctorSchedules.dayOfWeek,
-          dayOfWeek ?? "SUNDAY"
-        ),
-
-        eq(
-          doctorSchedules.isAvailable,
-          true
-        ),
-
-        eq(
-          doctorProfiles.isAvailable,
-          true
-        )
-      )
-    );
+    .leftJoin(
+      hospitals,
+      eq(doctorProfiles.hospitalId, hospitals.id)
+    )
+    .leftJoin(
+      departments,
+      eq(doctorProfiles.departmentId, departments.id)
+    )
+    .where(and(...conditions));
 
   return doctors;
 };
@@ -443,9 +413,6 @@ export const update = async (
 
         appointmentTime:
           data.appointmentTime,
-
-        consultationFee:
-          data.consultationFee,
 
         notes:
           data.notes,
@@ -590,9 +557,6 @@ export const getAll = async (
       appointmentTime:
         appointments.appointmentTime,
 
-      consultationFee:
-        appointments.consultationFee,
-
       notes:
         appointments.notes,
 
@@ -611,6 +575,12 @@ export const getAll = async (
       patientLastName:
         patientProfiles.lastName,
 
+      patientMobile:
+        users.mobile,
+
+      patientEmail:
+        users.email,
+
       hospitalName:
         hospitals.name,
 
@@ -622,6 +592,18 @@ export const getAll = async (
 
       doctorLastName:
         doctorProfiles.lastName,
+
+      prescriptionUrl:
+        sql<string | null>`(SELECT mr.file_url FROM medical_reports mr WHERE mr.appointment_id = ${appointments.id} AND mr.category = 'PRESCRIPTION' ORDER BY mr.created_at DESC LIMIT 1)`,
+
+      prescriptionFileName:
+        sql<string | null>`(SELECT mr.original_file_name FROM medical_reports mr WHERE mr.appointment_id = ${appointments.id} AND mr.category = 'PRESCRIPTION' ORDER BY mr.created_at DESC LIMIT 1)`,
+
+      prescriptionFileType:
+        sql<string | null>`(SELECT mr.file_type FROM medical_reports mr WHERE mr.appointment_id = ${appointments.id} AND mr.category = 'PRESCRIPTION' ORDER BY mr.created_at DESC LIMIT 1)`,
+
+      patientAppointmentCount:
+        sql<number>`(SELECT count(*) FROM appointments a_count WHERE a_count.patient_id = ${appointments.patientId})::int`,
     })
 
     .from(appointments)
@@ -631,6 +613,14 @@ export const getAll = async (
       eq(
         appointments.patientId,
         patientProfiles.id
+      )
+    )
+
+    .leftJoin(
+      users,
+      eq(
+        patientProfiles.userId,
+        users.id
       )
     )
 
@@ -752,7 +742,8 @@ export const getDoctorBookedSlots = async (
     return result.map(
       (appointment) =>
         appointment.appointmentTime
-    );  } catch (error) {
+    );
+  } catch (error) {
     console.error(
       "❌ getDoctorBookedSlots ERROR:",
       error

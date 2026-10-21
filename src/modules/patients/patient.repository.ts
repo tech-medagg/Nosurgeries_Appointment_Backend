@@ -17,7 +17,10 @@ import {
   sql,
   SQL,
 } from "drizzle-orm";
-
+import {
+  CreateMyPatientProfileInput,
+  UpdateMyPatientProfileInput,
+} from "./patient.validation";
 import { GetPatientsQuery } from "./patient.validation";
 
 import {
@@ -103,6 +106,162 @@ export const findByUserId = async (
     .limit(1);
 
   return result[0] ?? null;
+};
+
+/* ======================================================
+   Find User By Id
+====================================================== */
+
+export const findUserById = async (
+  userId: string
+) => {
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  return result[0] ?? null;
+};
+
+
+/* ======================================================
+   Find My Patient Profile
+   Includes User Information
+====================================================== */
+
+export const findMyProfile = async (
+  userId: string
+) => {
+  const result = await db
+    .select({
+      id: patientProfiles.id,
+      userId: patientProfiles.userId,
+
+      fullName: users.fullName,
+      email: users.email,
+      mobile: users.mobile,
+
+      firstName: patientProfiles.firstName,
+      lastName: patientProfiles.lastName,
+      gender: patientProfiles.gender,
+      dateOfBirth: patientProfiles.dateOfBirth,
+      bloodGroup: patientProfiles.bloodGroup,
+      language: patientProfiles.language,
+      profileImage: patientProfiles.profileImage,
+      address: patientProfiles.address,
+      city: patientProfiles.city,
+      state: patientProfiles.state,
+      country: patientProfiles.country,
+      pincode: patientProfiles.pincode,
+      emergencyContact:
+        patientProfiles.emergencyContact,
+      emergencyContactName:
+        patientProfiles.emergencyContactName,
+      medicalHistory:
+        patientProfiles.medicalHistory,
+      allergies:
+        patientProfiles.allergies,
+
+      createdAt: patientProfiles.createdAt,
+      updatedAt: patientProfiles.updatedAt,
+    })
+    .from(patientProfiles)
+    .innerJoin(
+      users,
+      eq(
+        patientProfiles.userId,
+        users.id
+      )
+    )
+    .where(
+      eq(
+        patientProfiles.userId,
+        userId
+      )
+    )
+    .limit(1);
+
+  return result[0] ?? null;
+};
+
+/* ======================================================
+   Create My Patient Profile
+====================================================== */
+
+export const createMyProfile = async (
+  userId: string,
+  data: CreateMyPatientProfileInput
+) => {
+  const existing =
+    await findByUserId(userId);
+
+  if (existing) {
+    return null;
+  }
+
+  const [patient] =
+    await db
+      .insert(patientProfiles)
+      .values({
+        userId,
+
+        firstName: data.firstName,
+        lastName: data.lastName,
+        gender: data.gender,
+        dateOfBirth: data.dateOfBirth,
+        bloodGroup: data.bloodGroup,
+        language: data.language,
+        profileImage: data.profileImage,
+        address: data.address,
+        city: data.city,
+        state: data.state,
+        country: data.country,
+        pincode: data.pincode,
+        emergencyContact:
+          data.emergencyContact,
+        emergencyContactName:
+          data.emergencyContactName,
+        medicalHistory:
+          data.medicalHistory,
+        allergies: data.allergies,
+      })
+      .returning();
+
+  return patient ?? null;
+};
+
+/* ======================================================
+   Update My Patient Profile
+====================================================== */
+
+export const updateMyProfile = async (
+  userId: string,
+  data: UpdateMyPatientProfileInput
+) => {
+  const existing =
+    await findByUserId(userId);
+
+  if (!existing) {
+    return null;
+  }
+
+  const [updatedPatient] =
+    await db
+      .update(patientProfiles)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(
+        eq(
+          patientProfiles.userId,
+          userId
+        )
+      )
+      .returning();
+
+  return updatedPatient ?? null;
 };
 
 /* ======================================================

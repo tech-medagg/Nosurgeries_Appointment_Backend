@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { AuthRequest } from "../../middleware/auth.middleware";
 
 import * as doctorService from "./doctor.service";
 
@@ -16,6 +17,38 @@ const getId = (req: Request): string | null => {
   }
 
   return id;
+};
+
+/* ======================================================
+   Get My Doctor Profile (for logged-in DOCTOR)
+====================================================== */
+
+export const getMyDoctorProfile = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized.",
+      });
+    }
+
+    const result =
+      await doctorService.getDoctorByUserId(userId);
+
+    return res
+      .status(result.success ? 200 : 404)
+      .json(result);
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 /* ======================================================

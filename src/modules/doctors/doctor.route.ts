@@ -8,7 +8,18 @@ import { authorize } from "../../middleware/authorize.middleware";
 const router = Router();
 
 /* ======================================================
-   Create Doctor
+   Get My Doctor Profile (Logged-in Doctor)
+====================================================== */
+
+router.get(
+  "/me",
+  authenticate,
+  authorize("DOCTOR"),
+  doctorController.getMyDoctorProfile
+);
+
+/* ======================================================
+   Create Doctor (Admin Only)
 ====================================================== */
 
 router.post(
@@ -19,40 +30,52 @@ router.post(
 );
 
 /* ======================================================
-   Get All Doctors
+   Get All Doctors (All Roles)
 ====================================================== */
 
 router.get(
   "/",
   authenticate,
-  authorize("SUPER_ADMIN", "ADMIN"),
+  authorize(
+    "SUPER_ADMIN",
+    "ADMIN",
+    "DOCTOR",
+    "COORDINATOR",
+    "PATIENT"
+  ),
   doctorController.getDoctors
 );
 
 /* ======================================================
-   Get Doctor By Id
+   Get Doctor By Id (All Roles)
 ====================================================== */
 
 router.get(
   "/:id",
   authenticate,
-  authorize("SUPER_ADMIN", "ADMIN"),
+  authorize(
+    "SUPER_ADMIN",
+    "ADMIN",
+    "DOCTOR",
+    "COORDINATOR",
+    "PATIENT"
+  ),
   doctorController.getDoctorById
 );
 
 /* ======================================================
-   Update Doctor
+   Update Doctor (Admin Only)
 ====================================================== */
 
 router.put(
   "/:id",
   authenticate,
-  authorize("SUPER_ADMIN", "ADMIN"),
+  authorize("SUPER_ADMIN", "ADMIN", "DOCTOR"),
   doctorController.updateDoctor
 );
 
 /* ======================================================
-   Delete Doctor
+   Delete Doctor (Admin Only)
 ====================================================== */
 
 router.delete(

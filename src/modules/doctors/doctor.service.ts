@@ -1,4 +1,9 @@
 import * as doctorRepository from "./doctor.repository";
+import { db } from "../../db";
+import { users } from "../../db/schema/users";
+import { hospitals } from "../../db/schema/hospitals";
+import { departments } from "../../db/schema/departments";
+import { eq } from "drizzle-orm";
 
 import {
   CreateDoctorInput,
@@ -26,17 +31,19 @@ export const createDoctor = async (
     };
   }
 
-  const existingRegistration =
-    await doctorRepository.findByRegistrationNumber(
-      data.registrationNumber
-    );
+  if (data.registrationNumber) {
+    const existingRegistration =
+      await doctorRepository.findByRegistrationNumber(
+        data.registrationNumber
+      );
 
-  if (existingRegistration) {
-    return {
-      success: false,
-      message:
-        "Registration number already exists.",
-    };
+    if (existingRegistration) {
+      return {
+        success: false,
+        message:
+          "Registration number already exists.",
+      };
+    }
   }
 
   const doctor =
@@ -72,6 +79,63 @@ export const getDoctors = async (
       totalPages:
         result.totalPages,
     },
+  };
+};
+
+/* ======================================================
+   Get Doctor By User Id (for /me endpoint)
+====================================================== */
+
+export const getDoctorByUserId = async (
+  userId: string
+) => {
+  let doctor =
+    await doctorRepository.findByUserId(
+      userId
+    );
+
+  if (!doctor) {
+    try {
+      const userRes = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const hospitalRes = await db.select().from(hospitals).limit(1);
+      const departmentRes = await db.select().from(departments).limit(1);
+
+      if (userRes[0] && hospitalRes[0] && departmentRes[0]) {
+        const nameParts = (userRes[0].fullName || "Doctor").trim().split(" ");
+        const firstName = nameParts[0] || "Doctor";
+        const lastName = nameParts.slice(1).join(" ") || "";
+
+        doctor = await doctorRepository.create({
+          userId,
+          hospitalId: hospitalRes[0].id,
+          departmentId: departmentRes[0].id,
+          firstName,
+          lastName,
+          qualification: "MBBS, MD",
+          specialization: "General Specialist",
+          experienceYears: 5,
+          consultationFee: 100,
+          isAvailable: true,
+          status: "ACTIVE",
+        });
+      }
+    } catch (err) {
+      console.error("Auto-create doctor profile failed:", err);
+    }
+  }
+
+  if (!doctor) {
+    return {
+      success: false,
+      message:
+        "Doctor profile not found for this user.",
+    };
+  }
+
+  return {
+    success: true,
+    message: "Doctor profile fetched successfully.",
+    data: doctor,
   };
 };
 
@@ -121,7 +185,7 @@ export const updateDoctor = async (
   if (
     data.registrationNumber &&
     data.registrationNumber !==
-      doctor.registrationNumber
+    doctor.registrationNumber
   ) {
     const exists =
       await doctorRepository.findByRegistrationNumber(

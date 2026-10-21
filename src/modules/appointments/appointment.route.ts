@@ -18,10 +18,12 @@ router.post(
   authorize(
     "SUPER_ADMIN",
     "ADMIN",
+    "COORDINATOR",
     "PATIENT"
   ),
   appointmentController.createAppointment
 );
+
 
 /* ======================================================
    Get All Appointments
@@ -50,7 +52,9 @@ router.get(
   authorize(
     "SUPER_ADMIN",
     "ADMIN",
-    "COORDINATOR"
+    "DOCTOR",
+    "COORDINATOR",
+    "PATIENT"
   ),
   appointmentController.getDoctorAvailability
 );
@@ -87,7 +91,9 @@ router.put(
   authorize(
     "SUPER_ADMIN",
     "ADMIN",
-    "COORDINATOR"
+    "COORDINATOR",
+    "DOCTOR",
+    "PATIENT"
   ),
   appointmentController.updateAppointment
 );
@@ -101,7 +107,9 @@ router.delete(
   authenticate,
   authorize(
     "SUPER_ADMIN",
-    "ADMIN"
+    "ADMIN",
+    "DOCTOR",
+    "PATIENT"
   ),
   appointmentController.deleteAppointment
 );

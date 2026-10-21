@@ -23,7 +23,7 @@ export const createDoctorSchema = z.object({
     "MALE",
     "FEMALE",
     "OTHER",
-  ]),
+  ]).optional(),
 
   dateOfBirth: z
     .string()
@@ -49,7 +49,8 @@ export const createDoctorSchema = z.object({
     .string()
     .trim()
     .min(2)
-    .max(100),
+    .max(100)
+    .optional(),
 
   experienceYears: z
     .number()

@@ -8,7 +8,7 @@ import { authorize } from "../../middleware/authorize.middleware";
 const router = Router();
 
 /* ==========================================================
-   Create Department
+   Create Department (Admin Only)
 ========================================================== */
 
 router.post(
@@ -19,29 +19,41 @@ router.post(
 );
 
 /* ==========================================================
-   Get All Departments
+   Get All Departments (All Roles)
 ========================================================== */
 
 router.get(
   "/",
   authenticate,
-  authorize("SUPER_ADMIN", "ADMIN"),
+  authorize(
+    "SUPER_ADMIN",
+    "ADMIN",
+    "DOCTOR",
+    "COORDINATOR",
+    "PATIENT"
+  ),
   departmentController.getDepartments
 );
 
 /* ==========================================================
-   Get Department By Id
+   Get Department By Id (All Roles)
 ========================================================== */
 
 router.get(
   "/:id",
   authenticate,
-  authorize("SUPER_ADMIN", "ADMIN"),
+  authorize(
+    "SUPER_ADMIN",
+    "ADMIN",
+    "DOCTOR",
+    "COORDINATOR",
+    "PATIENT"
+  ),
   departmentController.getDepartmentById
 );
 
 /* ==========================================================
-   Update Department
+   Update Department (Admin Only)
 ========================================================== */
 
 router.put(
@@ -52,7 +64,7 @@ router.put(
 );
 
 /* ==========================================================
-   Delete Department
+   Delete Department (Admin Only)
 ========================================================== */
 
 router.delete(

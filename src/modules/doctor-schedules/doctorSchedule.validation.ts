@@ -1,5 +1,20 @@
 import { z } from "zod";
 
+const normalizeTime = (val: string): string => {
+  if (!val) return "09:00";
+  const str = val.trim().toUpperCase();
+  const match = str.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/);
+  if (!match) return val;
+  let hours = parseInt(match[1]!, 10);
+  const minutes = match[2]!;
+  const period = match[3];
+
+  if (period === "PM" && hours < 12) hours += 12;
+  if (period === "AM" && hours === 12) hours = 0;
+
+  return `${hours.toString().padStart(2, "0")}:${minutes}`;
+};
+
 export const createDoctorScheduleSchema = z.object({
   doctorProfileId: z.string().uuid(),
 
@@ -15,11 +30,13 @@ export const createDoctorScheduleSchema = z.object({
 
   startTime: z
     .string()
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
+    .transform(normalizeTime)
+    .pipe(z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/)),
 
   endTime: z
     .string()
-    .regex(/^([01]\d|2[0-3]):([0-5]\d)$/),
+    .transform(normalizeTime)
+    .pipe(z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/)),
 
   slotDuration: z
     .number()
