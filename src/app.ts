@@ -84,9 +84,11 @@ app.get("/health", async (_req, res) => {
       userCount: countRes.rows[0].count,
     });
   } catch (err: any) {
-    const dbUrl = process.env.DATABASE_URL;
-    const maskedUrl = dbUrl
-      ? `${dbUrl.split("@")[0].replace(/:[^:]*$/, ":***")}@${dbUrl.split("@")[1] || ""}`
+    const dbUrl = process.env.DATABASE_URL || "";
+    const maskedUrl = dbUrl.includes("@")
+      ? `${dbUrl.split("@")[0]?.replace(/:[^:]*$/, ":***")}@${dbUrl.split("@")[1] || ""}`
+      : dbUrl
+      ? "SET_WITHOUT_AT_SYMBOL"
       : "NOT_SET";
     res.status(500).json({
       status: "error",
