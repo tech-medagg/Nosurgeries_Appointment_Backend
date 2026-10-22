@@ -87,6 +87,8 @@ export const login = async (data: LoginInput) => {
     roleId: user.roleId,
     roleName: user.roleName,
     email: user.email,
+    fullName: user.fullName,
+    mobile: user.mobile,
   });
 
   const { password, ...safeUser } = user;
@@ -274,6 +276,8 @@ export const googleLogin = async (data: GoogleOAuthInput) => {
     roleId: user.roleId,
     roleName: user.roleName,
     email: user.email,
+    fullName: user.fullName,
+    mobile: user.mobile,
   });
 
   const { password: _pw, ...safeUser } = user as any;
@@ -282,6 +286,25 @@ export const googleLogin = async (data: GoogleOAuthInput) => {
     success: true,
     message: "Logged in with Google successfully",
     data: { accessToken, user: safeUser },
+  };
+};
+
+/* ── Update Profile ──────────────────────────────────── */
+
+export const getMe = async (userId: string) => {
+  return await authRepository.findUserById(userId);
+};
+
+export const updateMe = async (
+  userId: string,
+  data: { fullName?: string; mobile?: string; email?: string }
+) => {
+  await authRepository.updateUserProfile(userId, data);
+  const updatedUser = await authRepository.findUserById(userId);
+  return {
+    success: true,
+    message: "Profile updated successfully",
+    data: updatedUser,
   };
 };
 

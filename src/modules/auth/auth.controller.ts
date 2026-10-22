@@ -64,7 +64,41 @@ export const login = async (req: Request, res: Response) => {
 /* ── Me ───────────────────────────────────────────────── */
 
 export const me = async (req: AuthRequest, res: Response) => {
-  return res.status(200).json({ success: true, data: req.user });
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    if (userId) {
+      const user = await authService.getMe(userId);
+      if (user) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            ...user,
+            userId: user.id,
+          },
+        });
+      }
+    }
+    return res.status(200).json({ success: true, data: req.user });
+  } catch (error: any) {
+    return res.status(200).json({ success: true, data: req.user });
+  }
+};
+
+export const updateMe = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.userId || req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+    const { fullName, mobile, email } = req.body;
+    const result = await authService.updateMe(userId, { fullName, mobile, email });
+    return res.status(200).json(result);
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to update profile",
+    });
+  }
 };
 
 /* ── Forgot Password ──────────────────────────────────── */

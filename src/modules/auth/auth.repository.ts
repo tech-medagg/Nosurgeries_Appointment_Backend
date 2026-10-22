@@ -141,6 +141,26 @@ export const updateUserPassword = async (userId: string, hashedPassword: string)
     .where(eq(users.id, userId));
 };
 
+export const updateUserProfile = async (
+  userId: string,
+  data: { fullName?: string; mobile?: string; email?: string }
+) => {
+  const updateData: Record<string, any> = { updatedAt: new Date() };
+  // Only update name/email if non-empty (they are required fields)
+  if (data.fullName !== undefined && data.fullName.trim()) updateData.fullName = data.fullName.trim();
+  if (data.email !== undefined && data.email.trim()) updateData.email = data.email.trim().toLowerCase();
+  // Mobile is optional — allow clearing it to empty string
+  if (data.mobile !== undefined) updateData.mobile = data.mobile.trim();
+
+  const [updated] = await db
+    .update(users)
+    .set(updateData)
+    .where(eq(users.id, userId))
+    .returning();
+
+  return updated;
+};
+
 /* ── OTP helpers ────────────────────────────────────────── */
 
 export const createPasswordResetOtp = async (userId: string, otp: string) => {

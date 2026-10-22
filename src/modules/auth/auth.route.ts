@@ -8,6 +8,7 @@ router.get("/roles", authController.getRoles);
 router.post("/register", authController.register);
 router.post("/login", authController.login);
 router.get("/me", authenticate, authController.me);
+router.put("/me", authenticate, authController.updateMe);
 
 // Forgot / Reset Password
 router.post("/forgot-password", authController.forgotPassword);

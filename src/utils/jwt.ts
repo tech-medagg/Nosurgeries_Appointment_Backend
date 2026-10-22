@@ -19,6 +19,8 @@ export interface JwtTokenPayload {
   roleId: string;
   roleName: string;
   email: string;
+  fullName?: string;
+  mobile?: string;
 }
 
 export const generateAccessToken = (
