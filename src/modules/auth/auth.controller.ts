@@ -50,7 +50,14 @@ export const login = async (req: Request, res: Response) => {
     return res.status(200).json(result);
   } catch (error: any) {
     console.error("LOGIN ERROR:", error);
-    return res.status(500).json({ success: false, message: error.message });
+    const isDbError =
+      error?.message?.includes("Failed query") ||
+      error?.code === "ECONNREFUSED" ||
+      error?.message?.includes("connect ECONNREFUSED");
+    const userMessage = isDbError
+      ? "Database service is temporarily unavailable. Please verify the database connection or try again later."
+      : (error.message || "An unexpected error occurred during login.");
+    return res.status(500).json({ success: false, message: userMessage });
   }
 };
 
