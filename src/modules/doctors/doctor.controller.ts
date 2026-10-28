@@ -40,8 +40,10 @@ export const getMyDoctorProfile = async (
     const result =
       await doctorService.getDoctorByUserId(userId);
 
+    // Return 200 even when no profile exists so the frontend
+    // can handle it gracefully (404 causes axios to throw).
     return res
-      .status(result.success ? 200 : 404)
+      .status(200)
       .json(result);
   } catch (error: any) {
     return res.status(500).json({
@@ -160,8 +162,10 @@ export const updateDoctor = async (
         body
       );
 
+    // Return 200 even when no profile exists so the frontend
+    // can handle it gracefully (404 causes axios to throw).
     return res
-      .status(result.success ? 200 : 404)
+      .status(200)
       .json(result);
 
   } catch (error: any) {
